@@ -1,0 +1,133 @@
+---
+title: "Homework 6"
+output: github_document
+---
+
+```{r setup, include = FALSE}
+library(tidyverse)
+library(modelr)
+library(p8105.datasets)
+library(mgcv)
+
+knitr::opts_chunk$set(
+  fig.width = 6,
+  fig.asp = .6,
+  out.width = "90%"
+)
+
+theme_set(theme_minimal() + theme(legend.position = "bottom"))
+
+options(
+  ggplot2.continuous.colour = "viridis",
+  ggplot2.continuous.fill = "viridis"
+)
+
+scale_colour_discrete = scale_color_viridis_d
+scale_fill_discrete = scale_fill_viridis_d
+
+set.seed(1)
+```
+
+### Problem 1
+
+```{r}
+homicide_df =
+  read_csv("homicide_data/homicide-data.csv") %>% na = c("", "NA", "Unknown") %>% 
+  mutate(
+    city_state = str_c(city, state, sep = ", "),
+    victime_age = as.numeric(victim_age),
+    resolution = case_when(
+      disposition == "Closed without arrest" ~ 0,
+      disposition == "Open/No arrest"        ~ 0,
+      disposition == "Closed by arrest"      ~ 1)
+  ) %>%
+  filter(city_state != "Tulsa_AL")  %>% 
+  select(city_state, resolution, victim_age, victim_race, victim_sex) 
+```
+
+Start with one city.
+
+```{r}
+baltimore_df =
+  homicide_df %>% 
+  filter(city_state == "Baltimore_MD") %>% 
+  
+  mutate(
+    OR = exp(estimate),
+    CI_lower = exp(estimate - 1.96 * std.error),
+    CI_upper = exp(estimate + 1.96 * std.error)
+  ) %>% 
+  select(term, OR, starts_with("CI")) %>% 
+  knitr::kable(gidits = 3)
+```
+
+
+Try this across cities.
+
+```{r}
+models_results_df =
+  homicide_df %>% 
+  nest(data = -city_state) %>% 
+  mutate(
+    models = 
+      map(.x = data, ~glm(resolution ~ victim_age + victim_race +victim_sex, data = .x, family = binomial())),
+    results = map(models, broom::tidy)
+  ) %>% 
+  select(city_state, results) %>% 
+  unest(results) %>% 
+  mutate(
+    OR = exp(estimate),
+    CI_lower = exp(estimate - 1.96 * std.error),
+    CI_upper = exp(estimate + 1.96 * std.error)
+  ) %>% 
+  select(city_state, term, OR, starts_with("CI"))
+```
+
+```{r}
+models_results_df =
+  filter(term == "victim_sexMale") %>% 
+  mutate(
+    city_state = fct_reorder(city_state, OR)
+  ) %>% 
+  ggplot(aes(x = city_state, y = OR)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = CI_lower, ymax = CI_upper)) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+# Problem 2
+
+fit two models as specified, third model is our discretion (deliberately open ended)
+then compare the three models using cross validation
+
+spend some time building the models = fit some models, look for statistical significant, look at residuals, etc.
+
+Find some residuals
+```{r}
+baby_df =
+  read_csv("./data/birthweight.csv")
+```
+
+fit a model
+```{r}
+model_fit = lm(bwt ~ gaweeks, data = baby_df)
+```
+
+```{r}
+baby_df %>% 
+  modelr::add_residuals(model_fit) %>% 
+  ggplot(aes(x = resid)) +
+  geom_density()
+
+baby_df %>% 
+  modelr::add_residuals(model_fit) %>% 
+  ggplot(aes(x = gaweeks, y = resid)) +
+  geom_point()
+```
+
+# Problem 3
+Try to use the bootstrap to find distributions
+download dataset
+fit model to dataset
+
+fit a linear model of max temp vs min temp -- two things interested in R2 value and estimated log(intercept * estimated coefficient - get broom tidy, get your estimated coefficients, get them next to each other, them multiply and do log.  start with one model first to get the process for one, then how do you do it for multiple)
