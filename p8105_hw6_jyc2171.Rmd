@@ -1,5 +1,6 @@
 ---
 title: "Homework 6"
+author: "Jerry Chao, UNI: jyc 2171"
 output: github_document
 ---
 
@@ -32,17 +33,20 @@ set.seed(1)
 
 ```{r}
 homicide_df =
-  read_csv("homicide_data/homicide-data.csv") %>% na = c("", "NA", "Unknown") %>% 
+  read_csv("./data/homicide-data.csv", na = c("", "NA", "Unknown")) %>% 
   mutate(
     city_state = str_c(city, state, sep = ", "),
-    victime_age = as.numeric(victim_age),
+    victim_age = as.numeric(victim_age),
     resolution = case_when(
       disposition == "Closed without arrest" ~ 0,
       disposition == "Open/No arrest"        ~ 0,
       disposition == "Closed by arrest"      ~ 1)
   ) %>%
-  filter(city_state != "Tulsa_AL")  %>% 
-  select(city_state, resolution, victim_age, victim_race, victim_sex) 
+  filter(
+    victim_race %in% c("White", "Black"),
+    city_state != "Tulsa, AL"
+  )  %>% 
+  select(city_state, resolution, victim_age, victim_race, victim_sex)
 ```
 
 Start with one city.
@@ -50,41 +54,55 @@ Start with one city.
 ```{r}
 baltimore_df =
   homicide_df %>% 
-  filter(city_state == "Baltimore_MD") %>% 
-  
+  filter(city_state == "Baltimore, MD")
+
+glm(resolution ~ victim_age + victim_race + victim_sex,
+    data = baltimore_df,
+    family = binomial()) %>% 
+  broom::tidy() %>% 
   mutate(
     OR = exp(estimate),
     CI_lower = exp(estimate - 1.96 * std.error),
     CI_upper = exp(estimate + 1.96 * std.error)
   ) %>% 
   select(term, OR, starts_with("CI")) %>% 
-  knitr::kable(gidits = 3)
+  knitr::kable(digits = 3)
 ```
 
-
-Try this across cities.
+Try this across cities - not just Baltimore, but for every city in my dataset.
+The process for this is:
+(1) Nesting my dataset - so that I get a dataframe for each city
+(2) Map over that list, fitting the regression model that I care about for each city
+(3) Tidy up the results by mapping across regression models
+(4) At the end of that, I am left with another dataframe with contains city, estimates of odds ratios and intercept, and look at these effects city-by-city
 
 ```{r}
 models_results_df =
   homicide_df %>% 
   nest(data = -city_state) %>% 
   mutate(
-    models = 
-      map(.x = data, ~glm(resolution ~ victim_age + victim_race +victim_sex, data = .x, family = binomial())),
+    models = map(.x = data, ~glm(resolution ~ victim_age + victim_race + victim_sex, data = .x, family = binomial())),
     results = map(models, broom::tidy)
   ) %>% 
   select(city_state, results) %>% 
-  unest(results) %>% 
+  unnest(results) %>% 
   mutate(
     OR = exp(estimate),
     CI_lower = exp(estimate - 1.96 * std.error),
     CI_upper = exp(estimate + 1.96 * std.error)
   ) %>% 
   select(city_state, term, OR, starts_with("CI"))
+
+#check to make sure the model matches baltimore_df from above as an intermediate check
+#models_results_df %>% 
+#  filter(city_state == "Baltimore, MD") %>% 
+#  pull(models) 
 ```
 
+Make a plot - similar to last homework - of ORs, comparing male to female across cities.  Across cities, are males vs. females more or less likely to have their homoicides resolved?
+
 ```{r}
-models_results_df =
+models_results_df %>% 
   filter(term == "victim_sexMale") %>% 
   mutate(
     city_state = fct_reorder(city_state, OR)
@@ -93,6 +111,7 @@ models_results_df =
   geom_point() +
   geom_errorbar(aes(ymin = CI_lower, ymax = CI_upper)) +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
+#Interpretation: male sex is associated with lower likelihood of having homicides resolved compared to females
 ```
 
 # Problem 2
