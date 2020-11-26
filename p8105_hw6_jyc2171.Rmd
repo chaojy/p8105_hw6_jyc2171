@@ -4,7 +4,7 @@ author: "Jerry Chao, UNI: jyc 2171"
 output: github_document
 ---
 
-```{r setup, include = FALSE}
+```{r setup, echo = FALSE}
 library(tidyverse)
 library(modelr)
 library(p8105.datasets)
@@ -117,7 +117,7 @@ models_results_df %>%
 # Problem 2
 
 ```{r, echo = FALSE}
-#This code chunk includes notes from synchronous class, please ignore.  Thanks.
+#This code chunk includes my notes from synchronous class as guidance, please ignore.  Thanks.
 
 # Fit two models as specified, third model is our discretion (deliberately open ended)
 # then compare the three models using cross validation
@@ -149,39 +149,284 @@ models_results_df %>%
 
 This is my solution for Problem 2
 
-First, I have assigned the corresponding names to variables with numerical coding. I have converted birth weight from grams to kilograms, all weights in pounds to kilograms, and family income from hundreds to single units (e.g., 35 to 3500).  I have removed the variables pnumlbw and pnumsga because all observations are zero.
+First, I have assigned an id number to each observation.  Next, I have assigned the corresponding variable names to their numerical coding. I have converted some units so that they make more sense to me: birth weight from grams to kilograms, all weights in pounds to kilograms, and family monthly income from hundreds to single units (e.g., 35 to 3500).  I have deselected "pnumlbw" and "pnumsga", since all observations for these variables are zero.  I have converted "babysex" to a factor variable, since it may be interesting to look at variables by biological sex, and I have releveled such that female is the reference category.  I have also releveled mrace with white as the reference level.  There does not appear to be much missing data.
 ```{r}
 baby_df =
   read_csv("./data/birthweight.csv") %>% 
   mutate(
+    id = sample(1:4342, 4342),
     babysex = recode(babysex, "2" = "female", "1" = "male"),
+    babysex = fct_relevel(babysex, "female", "male"),
     bwt = bwt / 1000,
     momwt = delwt / 2.2046226218,
     fincome = fincome * 100,
     frace = 
       recode(frace, "1" = "white", "2" = "black", "3" = "asian", "4" = "puerto rican", "8" = "other", "9" = "unknown"),
+    frace = fct_relevel(frace, "white", "black", "puerto rican", "asian", "other"),
     malform = recode(malform, "0" = "absent", "1" = "present"),
     mheight = mheight * 2.54,
     mrace = recode(mrace, "1" = "white", "2" = "black", "3" = "asian", "4" = "puerto rican", "8" = "other"),
+    mrace = fct_relevel(mrace, "white", "black", "puerto rican", "asian"),
     ppwt = ppwt / 2.2046226218,
     wtgain = wtgain / 2.2046226218
   ) %>% 
-  select(babysex, bhead, blength, bwt, momwt, everything(), -delwt, -pnumlbw, -pnumsga)
+  select(id, babysex, bhead, blength, bwt, momwt, everything(), -delwt, -pnumlbw, -pnumsga) %>% 
+  arrange(id)
 ```
 
-Next, I will fit the two specified models and perform cross-validation 
-```{r}
-lm_1 = lm(bwt ~ blength + gaweeks, data = baby_df) %>% broom::tidy()
-lm_2 = lm(bwt ~ bhead * blength * babysex, data = baby_df) %>% broom::tidy()
+Some univariate exploratory plots to check my data cleaning AND explore some general associations.
+```{r, eval = FALSE}
+baby_df %>% 
+  ggplot(aes(x = babysex, y = bwt)) +
+  geom_boxplot()
+
+baby_df %>% 
+  ggplot(aes(x = bwt, group = babysex, fill = babysex)) +
+  geom_density(alpha = .5)
+
+baby_df %>% 
+  mutate(
+    mrace = as.factor(mrace),
+    mrace = fct_reorder(mrace, bwt)
+  ) %>% 
+  ggplot(aes(x = mrace, y = bwt)) +
+  geom_boxplot()
+#maternal race seems associated
+
+baby_df %>% 
+  mutate(
+    frace = as.factor(frace),
+    frace = fct_reorder(frace, bwt)
+  ) %>% 
+  ggplot(aes(x = frace, y = bwt)) +
+  geom_boxplot()
+
+baby_df %>% 
+  ggplot(aes(x = momwt, y = bwt)) +
+  geom_point()
+
+baby_df %>% 
+  ggplot(aes(x = ppwt, y = bwt)) +
+  geom_point()
+
+baby_df %>% 
+  ggplot(aes(x = bhead, y = bwt)) +
+  geom_point()
+  
+baby_df %>% 
+  mutate(
+    bhead = as.factor(bhead),
+    bhead = fct_reorder(bhead, bwt)
+  ) %>% 
+  ggplot(aes(x = bhead, y = bwt)) +
+  geom_boxplot()
+#bhead seems strongly associated with bwt
 
 baby_df %>% 
   ggplot(aes(x = blength, y = bwt)) +
   geom_point()
 
 baby_df %>% 
+  mutate(
+    blength = as.factor(blength),
+    blength = fct_reorder(blength, bwt)
+  ) %>% 
+  ggplot(aes(x = blength, y = bwt)) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+baby_df %>% 
   ggplot(aes(x = gaweeks, y = bwt)) +
   geom_point()
+
+baby_df %>% 
+  mutate(
+    gaweeks = as.factor(gaweeks),
+    gaweeks = fct_reorder(gaweeks, bwt)
+  ) %>% 
+  ggplot(aes(x = gaweeks, y = bwt)) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+baby_df %>% 
+  ggplot(aes(x = fincome, y = bwt)) +
+  geom_point()
+
+baby_df %>% 
+  mutate(
+    fincome = as.factor(fincome),
+    fincome = fct_reorder(fincome, bwt)
+  ) %>% 
+  ggplot(aes(x = fincome, y = bwt)) +
+  geom_boxplot()
+
+baby_df %>% 
+  ggplot(aes(x = malform, y = bwt)) +
+  geom_boxplot()
+
+baby_df %>% 
+  ggplot(aes(x = menarche, y = bwt)) +
+  geom_point()
+
+baby_df %>% 
+  mutate(
+    menarche = as.factor(menarche),
+    menarche = fct_reorder(menarche, bwt)
+  ) %>% 
+  ggplot(aes(x = menarche, y = bwt)) +
+  geom_boxplot()
+
+baby_df %>% 
+  mutate(
+    parity = as.factor(parity),
+    parity = fct_reorder(parity, bwt)
+  ) %>% 
+  ggplot(aes(x = parity, y = bwt)) +
+  geom_boxplot()
+
+baby_df %>% 
+  ggplot(aes(x = ppbmi, y = bwt)) +
+  geom_point()
+
+baby_df %>% 
+  ggplot(aes(x = smoken, y = bwt)) +
+  geom_point()
+
+baby_df %>% 
+  mutate(
+    smoken = as.factor(smoken),
+    smoken = fct_reorder(smoken, bwt)
+  ) %>% 
+  ggplot(aes(x = smoken, y = bwt)) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+baby_df %>% 
+  ggplot(aes(x = wtgain, y = bwt)) +
+  geom_point()  
 ```
+
+Next, I will fit univariate linear models to assess the p values of variables for consideration for inclusion into my model, at a level of statistical significance of p < 0.05.  A priori based on my exploratory ggplots, I will definitely select babysex, mrace, momwt, bhead, blength, gaweeks.
+```{r}
+#First, univariate regression of my a priori selected variables
+lm(bwt ~ babysex, data = baby_df) %>% broom::tidy()
+#p = 0.0000000108
+lm(bwt ~ mrace, data = baby_df) %>% broom::tidy()
+#with white as reference, black maternal race (p = 6.25e-90) and puerto rican maternal race (-6.39 1.86e-10) are statistically significant
+lm(bwt ~ momwt, data = baby_df) %>% broom::tidy()
+#p = 1.22e-83
+lm(bwt ~ bhead, data = baby_df) %>% broom::tidy()
+#p = 0, collinear variables?
+lm(bwt ~ blength, data = baby_df) %>% broom::tidy()
+#p = 0, collinear?
+lm(bwt ~ gaweeks, data = baby_df) %>% broom::tidy()
+#p = 9.69e-178
+
+#next, the other variables
+lm(bwt ~ fincome, data = baby_df) %>% broom::tidy()
+#p = 1.26e-24
+lm(bwt ~ frace, data = baby_df) %>% broom::tidy()
+#with white as reference, black paternal race and puerto rican race are statistically significant (6.25e-90 and 1.86e-10 respectively)
+lm(bwt ~ malform, data = baby_df) %>% broom::tidy()
+#p = 0.930
+lm(bwt ~ menarche, data = baby_df) %>% broom::tidy()
+#p = 0.108
+lm(bwt ~ parity, data = baby_df) %>% broom::tidy()
+#p = 0.581
+lm(bwt ~ ppbmi, data = baby_df) %>% broom::tidy()
+#p = 5.56e-10
+lm(bwt ~ ppwt, data = baby_df) %>% broom::tidy()
+#p = 5.69e-34
+lm(bwt ~ smoken, data = baby_df) %>% broom::tidy()
+#p = 0.000000607
+lm(bwt ~ wtgain, data = baby_df) %>% broom::tidy()
+#p = 1.73e-61
+```
+
+Based on my univariate analyses of all covariates, the following variables are statisticall significant at the p < 0.05 level: babysex, mrace, momwt, gaweeks, fincome, frace, ppbmi, ppwt, smoken, and wtgain.  Bhead and blength have p values equal to zero - I wonder if these are collinear variables (since they all kind of measure the same thing).  I will include these anyway because, why not?
+
+So my final model will consist of the following variables: babysex, mrace, momwt, gaweeks, fincome, frace, ppbmi, ppwt, smoken, wtgain, bhead and blength.  I will not assess for confounding or interaction at this time, and if I have time, I will come back and assess for these.  In particular, babysex and mrace may show important interactions for further exploration.  For now, this seems to be "reasonable" model for me to move forward in the homework problem to perform cross-validation.
+
+```{r}
+#lm_3 = lm(bwt ~ gaweeks + bhead + blenth + momwt + babysex + mrace + )
+```
+
+
+Next, I will fit the two specified models and perform cross-validation just for these two models
+```{r}
+lm_1 = lm(bwt ~ blength + gaweeks, data = baby_df) %>% broom::tidy()
+lm_2 = lm(bwt ~ bhead * blength * babysex, data = baby_df) %>% broom::tidy()
+
+cv_df =
+  crossv_mc(baby_df, 100)
+
+cv_df %>% pull(train) %>% .[[1]] %>% as_tibble()
+cv_df %>% pull(test) %>% .[[1]] %>% as_tibble()
+
+cv_df =
+  cv_df %>% 
+  mutate(
+    train = map(train, as_tibble),
+    test = map(test, as_tibble)
+  )
+
+#get RMSEs for my models
+cv_df =
+  cv_df %>% 
+  mutate(
+    lm_1 = map(.x = train, ~lm(bwt ~ blength + gaweeks, data = .x)),
+    lm_2 = map(.x = train, ~lm(bwt ~ bhead * blength * babysex, data = .x))
+  ) %>% 
+  mutate(
+    rmse_lm_1 = map2_dbl(.x = lm_1, .y = test, ~rmse(model = .x, data = .y)),
+    rmse_lm_2 = map2_dbl(.x = lm_2, .y = test, ~rmse(model = .x, data = .y))
+  )
+
+cv_df %>% 
+  select(starts_with("rmse")) %>% 
+  pivot_longer(
+    everything(),
+    names_to = "model",
+    values_to = "rmse",
+    names_prefix = "rmse_"
+  ) %>% 
+  ggplot(aes(x = model, y = rmse)) +
+  geom_violin()
+#Based on this distribution of RMSEs, lm_2 is doing better.
+
+cv_df %>% 
+  select(starts_with("rmse")) %>% 
+  pivot_longer(
+    everything(),
+    names_to = "model",
+    values_to = "rmse",
+    names_prefix = "rmse_"
+  ) %>% 
+  group_by(model) %>% 
+  summarize(avg_rmse = mean(rmse))
+
+```
+
+I will now build my model
+
+```{r, include = FALSE}
+# #try the "by hand" method first - could not get this to work, will ask TAs
+# train_df = sample_n(baby_df, size = 3474) 
+# test_df = anti_join(baby_df, train_df, by = "id")
+# 
+# #confirm that the train_df and test_df are not the same observations
+# train_df %>% arrange(id)
+# test_df %>% arrange(id)
+# 
+# lm_1 = lm(bwt ~ blength + gaweeks, data = train_df) %>% broom::tidy()
+# lm_2 = lm(bwt ~ bhead * blength * babysex, data = train_df) %>% broom::tidy()
+# 
+# rmse(lm_1, test_df)
+# rmse(lm_2, test_df)
+```
+
+
+
 
 ```{r}
 
