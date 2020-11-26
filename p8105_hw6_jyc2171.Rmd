@@ -116,36 +116,75 @@ models_results_df %>%
 
 # Problem 2
 
-fit two models as specified, third model is our discretion (deliberately open ended)
-then compare the three models using cross validation
+```{r, echo = FALSE}
+#This code chunk includes notes from synchronous class, please ignore.  Thanks.
 
-Process:
-(1) Fit the two specified models
-(2) Do cross-validation on those based on the lecture videos - get cross-validation to work on this new dataset
-Then,
-(3) Spend some time building your model = fit some models, look for statistical significant, look at residuals, etc.  Your model should be better than the first model, maybe better than the 3-way interaction model
+# Fit two models as specified, third model is our discretion (deliberately open ended)
+# then compare the three models using cross validation
+# 
+# Process:
+# (1) Fit the two specified models
+# (2) Do cross-validation on those based on the lecture videos - get cross-validation to work on this new dataset
+# Then,
+# (3) Spend some time building your model = fit some models, look for statistical significant, look at residuals, etc.  Your model should be better than the first model, maybe better than the 3-way interaction model
 
-Find some residuals
+# Find some residuals
+# 
+# baby_df =
+#   read_csv("./data/birthweight.csv")
+# 
+# fit a model
+# model_fit = lm(bwt ~ gaweeks, data = baby_df)
+# 
+# baby_df %>% 
+#   modelr::add_residuals(model_fit) %>% 
+#   ggplot(aes(x = resid)) +
+#   geom_density()
+# 
+# baby_df %>% 
+#   modelr::add_residuals(model_fit) %>% 
+#   ggplot(aes(x = gaweeks, y = resid)) +
+#   geom_point()
+```
+
+This is my solution for Problem 2
+
+First, I have assigned the corresponding names to variables with numerical coding. I have converted birth weight from grams to kilograms, all weights in pounds to kilograms, and family income from hundreds to single units (e.g., 35 to 3500).  I have removed the variables pnumlbw and pnumsga because all observations are zero.
 ```{r}
 baby_df =
-  read_csv("./data/birthweight.csv")
+  read_csv("./data/birthweight.csv") %>% 
+  mutate(
+    babysex = recode(babysex, "2" = "female", "1" = "male"),
+    bwt = bwt / 1000,
+    momwt = delwt / 2.2046226218,
+    fincome = fincome * 100,
+    frace = 
+      recode(frace, "1" = "white", "2" = "black", "3" = "asian", "4" = "puerto rican", "8" = "other", "9" = "unknown"),
+    malform = recode(malform, "0" = "absent", "1" = "present"),
+    mheight = mheight * 2.54,
+    mrace = recode(mrace, "1" = "white", "2" = "black", "3" = "asian", "4" = "puerto rican", "8" = "other"),
+    ppwt = ppwt / 2.2046226218,
+    wtgain = wtgain / 2.2046226218
+  ) %>% 
+  select(babysex, bhead, blength, bwt, momwt, everything(), -delwt, -pnumlbw, -pnumsga)
 ```
 
-fit a model
+Next, I will fit the two specified models and perform cross-validation 
 ```{r}
-model_fit = lm(bwt ~ gaweeks, data = baby_df)
-```
-
-```{r}
-baby_df %>% 
-  modelr::add_residuals(model_fit) %>% 
-  ggplot(aes(x = resid)) +
-  geom_density()
+lm_1 = lm(bwt ~ blength + gaweeks, data = baby_df) %>% broom::tidy()
+lm_2 = lm(bwt ~ bhead * blength * babysex, data = baby_df) %>% broom::tidy()
 
 baby_df %>% 
-  modelr::add_residuals(model_fit) %>% 
-  ggplot(aes(x = gaweeks, y = resid)) +
+  ggplot(aes(x = blength, y = bwt)) +
   geom_point()
+
+baby_df %>% 
+  ggplot(aes(x = gaweeks, y = bwt)) +
+  geom_point()
+```
+
+```{r}
+
 ```
 
 evaluating residuals:
