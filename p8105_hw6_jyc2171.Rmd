@@ -128,6 +128,10 @@ models_results_df %>%
 # Then,
 # (3) Spend some time building your model = fit some models, look for statistical significant, look at residuals, etc.  Your model should be better than the first model, maybe better than the 3-way interaction model
 
+# evaluating residuals:
+# (1) Is there skewness in the distribution?
+# (2) Is there any sort of trend?  Linear?  Non-linear?  Parabola?
+
 # Find some residuals
 # 
 # baby_df =
@@ -149,8 +153,14 @@ models_results_df %>%
 
 This is my solution for Problem 2
 
+My solution to Problem 2 is structured in 4 parts:
+(1) Import, clean, and tidying the data.
+(2) Explore the data and fit my model, explaining my rationale and model-building process, followed by diagnostics using add_residuals and add_predictions.
+(3) Perform cross-validation of the 2 specified models in the homework stem, as a start, in order to make sure I can do it.
+(4) Perform cross-validation including all 3 models.
+
 First, I have assigned an id number to each observation.  Next, I have assigned the corresponding variable names to their numerical coding. I have converted some units so that they make more sense to me: birth weight from grams to kilograms, all weights in pounds to kilograms, and family monthly income from hundreds to single units (e.g., 35 to 3500).  I have deselected "pnumlbw" and "pnumsga", since all observations for these variables are zero.  I have converted "babysex" to a factor variable, since it may be interesting to look at variables by biological sex, and I have releveled such that female is the reference category.  I have also releveled mrace with white as the reference level.  There does not appear to be much missing data.
-```{r}
+```{r, import, clean, and tidy}
 baby_df =
   read_csv("./data/birthweight.csv") %>% 
   mutate(
@@ -306,8 +316,8 @@ baby_df %>%
   geom_point()  
 ```
 
-Next, I will fit univariate linear models to assess the p values of variables for consideration for inclusion into my model, at a level of statistical significance of p < 0.05.  A priori based on my exploratory ggplots, I will definitely select babysex, mrace, momwt, bhead, blength, gaweeks.
-```{r}
+Next, I will fit univariate linear models to assess the p values of variables for consideration for inclusion into my model, at a level of statistical significance of p < 0.05.  A priori based on my exploratory ggplots and biological theory, I will definitely select babysex, mrace, momwt, bhead, blength, gaweeks.
+```{r, explore the data with univariate linear regression models}
 #First, univariate regression of my a priori selected variables
 lm(bwt ~ babysex, data = baby_df) %>% broom::tidy()
 #p = 0.0000000108
@@ -343,22 +353,149 @@ lm(bwt ~ wtgain, data = baby_df) %>% broom::tidy()
 #p = 1.73e-61
 ```
 
-Based on my univariate analyses of all covariates, the following variables are statisticall significant at the p < 0.05 level: babysex, mrace, momwt, gaweeks, fincome, frace, ppbmi, ppwt, smoken, and wtgain.  Bhead and blength have p values equal to zero - I wonder if these are collinear variables (since they all kind of measure the same thing).  I will include these anyway because, why not?
+Based on a univariate analyses, the following predictors are statistically significant at the p < 0.05 level: babysex, mrace, momwt, gaweeks, fincome, frace, ppbmi, ppwt, smoken, and wtgain.  Bhead and blength have p values equal to zero - I wonder if these are collinear variables (since they all kind of measure the same thing).  I will include these anyway because, why not?
 
 So my final model will consist of the following variables: babysex, mrace, momwt, gaweeks, fincome, frace, ppbmi, ppwt, smoken, wtgain, bhead and blength.  I will not assess for confounding or interaction at this time, and if I have time, I will come back and assess for these.  In particular, babysex and mrace may show important interactions for further exploration.  For now, this seems to be "reasonable" model for me to move forward in the homework problem to perform cross-validation.
 
 ```{r}
-#lm_3 = lm(bwt ~ gaweeks + bhead + blenth + momwt + babysex + mrace + )
+lm_3 = lm(bwt ~ gaweeks + bhead + blength + momwt + babysex + mrace + frace + fincome + ppbmi + ppwt + smoken + wtgain, data = baby_df) 
+
+lm_3 %>%
+  broom::tidy()
 ```
 
+Diagnostics on my model...
+```{r}
+modelr::add_residuals(baby_df, lm_3)
 
-Next, I will fit the two specified models and perform cross-validation just for these two models
+modelr::add_residuals(baby_df, lm_3) %>% 
+  ggplot(aes(x = gaweeks, y = resid)) +
+  geom_violin()
+#the distribution of the residuals is mostly around 0, but there are some outliers and skewness towards +2
+
+modelr::add_residuals(baby_df, lm_3) %>% 
+  ggplot(aes(x = bhead, y = resid)) +
+  geom_violin()
+#the distribution of the residuals is mostly around 0, but there are some outliers and some skewness towards +2
+
+modelr::add_residuals(baby_df, lm_3) %>% 
+  ggplot(aes(x = blength, y = resid)) +
+  geom_violin()
+
+modelr::add_residuals(baby_df, lm_3) %>% 
+  ggplot(aes(x = momwt, y = resid)) +
+  geom_violin()
+
+modelr::add_residuals(baby_df, lm_3) %>% 
+  ggplot(aes(x = babysex, y = resid)) +
+  geom_violin()
+
+modelr::add_residuals(baby_df, lm_3) %>% 
+  ggplot(aes(x = mrace, y = resid)) +
+  geom_violin()
+
+modelr::add_residuals(baby_df, lm_3) %>% 
+  ggplot(aes(x = frace, y = resid)) +
+  geom_violin()
+
+modelr::add_residuals(baby_df, lm_3) %>% 
+  ggplot(aes(x = fincome, y = resid)) +
+  geom_violin()
+
+modelr::add_residuals(baby_df, lm_3) %>% 
+  ggplot(aes(x = ppbmi, y = resid)) +
+  geom_violin()
+
+modelr::add_residuals(baby_df, lm_3) %>% 
+  ggplot(aes(x = ppwt, y = resid)) +
+  geom_violin()
+
+modelr::add_residuals(baby_df, lm_3) %>% 
+  ggplot(aes(x = smoken, y = resid)) +
+  geom_violin()
+
+modelr::add_residuals(baby_df, lm_3) %>% 
+  ggplot(aes(x = wtgain, y = resid)) +
+  geom_violin()
+
+#in general, these plots all show some skewness
+
+modelr::add_residuals(baby_df, lm_3) %>% 
+  ggplot(aes(x = gaweeks, y = resid)) +
+  geom_point() +
+  facet_wrap(. ~ mrace)
+
+modelr::add_residuals(baby_df, lm_3) %>% 
+  ggplot(aes(x = gaweeks, y = resid)) +
+  geom_violin() +
+  facet_wrap(. ~ mrace)
+
+modelr::add_residuals(baby_df, lm_3) %>% 
+  ggplot(aes(x = bhead, y = resid)) +
+  geom_violin() +
+  facet_wrap(. ~ mrace)
+
+modelr::add_residuals(baby_df, lm_3) %>% 
+  ggplot(aes(x = momwt, y = resid)) +
+  geom_violin() +
+  facet_wrap(. ~ mrace)
+
+modelr::add_residuals(baby_df, lm_3) %>% 
+  ggplot(aes(x = gaweeks, y = resid)) +
+  geom_point() +
+  facet_wrap(. ~ babysex)
+
+modelr::add_residuals(baby_df, lm_3) %>% 
+  ggplot(aes(x = bhead, y = resid)) +
+  geom_point() +
+  facet_wrap(. ~ babysex)
+
+modelr::add_residuals(baby_df, lm_3) %>% 
+  ggplot(aes(x = gaweeks, y = resid)) +
+  geom_point() +
+  facet_wrap(. ~ frace)
+
+modelr::add_residuals(baby_df, lm_3) %>% 
+  ggplot(aes(x = gaweeks, y = resid)) +
+  geom_violin() +
+  facet_wrap(. ~ frace)
+
+#use add_predictions
+
+modelr::add_predictions(baby_df, lm_3)
+
+#modelr::add_predictions(baby_df, lm_3) %>% View()
+
+#3 plots using add_predictions:
+
+baby_df %>% 
+  modelr::add_residuals(lm_3) %>% 
+  ggplot(aes(x = gaweeks, y = resid)) +
+  geom_violin()
+
+baby_df %>% 
+  modelr::add_residuals(lm_3) %>% 
+  ggplot(aes(x = bhead, y = resid)) +
+  geom_violin() +
+  facet_wrap(. ~ babysex)
+
+baby_df %>% 
+  modelr::add_residuals(lm_3) %>% 
+  ggplot(aes(x = gaweeks, y = resid)) +
+  geom_violin() +
+  facet_wrap(. ~ mrace)
+
+#in general, some skewness in positive direction, less so in puerto rican race
+```
+In general, the distribution of residuals shows some skewness towards higher values, likely reflecting outliers in the data.  The pattern and trend of the residuals seem to be clustered around a central blok and seems overall linear.  There does not appear to be a non-linear or parabolic pattern.
+
+
+Next, I will first fit the two specified models in the homework and perform cross-validation just for these two models, to make sure I can do it correctly.
 ```{r}
 lm_1 = lm(bwt ~ blength + gaweeks, data = baby_df) %>% broom::tidy()
 lm_2 = lm(bwt ~ bhead * blength * babysex, data = baby_df) %>% broom::tidy()
 
-cv_df =
-  crossv_mc(baby_df, 100)
+cv_df = crossv_mc(baby_df, 100)
 
 cv_df %>% pull(train) %>% .[[1]] %>% as_tibble()
 cv_df %>% pull(test) %>% .[[1]] %>% as_tibble()
@@ -403,11 +540,52 @@ cv_df %>%
     names_prefix = "rmse_"
   ) %>% 
   group_by(model) %>% 
-  summarize(avg_rmse = mean(rmse))
-
+  summarize(avg_rmse = mean(rmse)) %>% 
+  knitr::kable()
 ```
 
-I will now build my model
+Now, I perform cross-validation for all 3 models, including the model that I fit.
+```{r}
+#get RMSEs for all 3 models
+cv_df =
+  cv_df %>% 
+  mutate(
+    lm_1 = map(.x = train, ~lm(bwt ~ blength + gaweeks, data = .x)),
+    lm_2 = map(.x = train, ~lm(bwt ~ bhead * blength * babysex, data = .x)),
+    lm_3 = map(.x = train, ~lm(bwt ~ gaweeks + bhead + blength + momwt + babysex + mrace + frace + fincome + ppbmi + ppwt +                smoken + wtgain, data = .x))
+  ) %>% 
+  mutate(
+    rmse_lm_1 = map2_dbl(.x = lm_1, .y = test, ~rmse(model = .x, data = .y)),
+    rmse_lm_2 = map2_dbl(.x = lm_2, .y = test, ~rmse(model = .x, data = .y)),
+    rmse_lm_3 = map2_dbl(.x = lm_3, .y = test, ~rmse(model = .x, data = .y))
+  )
+
+cv_df %>% 
+  select(starts_with("rmse")) %>% 
+  pivot_longer(
+    everything(),
+    names_to = "model",
+    values_to = "rmse",
+    names_prefix = "rmse_"
+  ) %>% 
+  ggplot(aes(x = model, y = rmse)) +
+  geom_violin()
+#Based on this distribution of RMSEs, lm_3 seems to have lower residuals, and doing better.
+
+cv_df %>% 
+  select(starts_with("rmse")) %>% 
+  pivot_longer(
+    everything(),
+    names_to = "model",
+    values_to = "rmse",
+    names_prefix = "rmse_"
+  ) %>% 
+  group_by(model) %>% 
+  summarize(avg_rmse = mean(rmse)) %>% 
+  knitr::kable()
+```
+
+Overall, the average RMSE is lowest for model #3 compared to the other models, suggesting it provides the best prediction.  However, the model contains a lot of predictors and is less parsimonious than the other models.  Some of the predictors could confound each other.  There may be interactions that I have not explored, particularly by gender and race.  If I were to spend more time on model-building, I could explore interactions and confounders of the association between bwt and gaweeks, because gaweeks is biologically, the length of pregnancy is one of the most important predictors of birth weight.  In addition, statistically, gaweeks seemed to return the smallest p value on univariate regression.
 
 ```{r, include = FALSE}
 # #try the "by hand" method first - could not get this to work, will ask TAs
@@ -424,17 +602,6 @@ I will now build my model
 # rmse(lm_1, test_df)
 # rmse(lm_2, test_df)
 ```
-
-
-
-
-```{r}
-
-```
-
-evaluating residuals:
-(1) Is there skewness in the distribution?
-(2) Is there any sort of trend?  Linear?  Non-linear?  Parabola?
 
 # Problem 3
 Central Park Weather dataset
