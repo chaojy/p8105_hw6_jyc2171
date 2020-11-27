@@ -604,12 +604,186 @@ Overall, the average RMSE is lowest for model #3 compared to the other models, s
 ```
 
 # Problem 3
-Central Park Weather dataset
-Try to use the bootstrap to obtain distributions for parameters that you are interested in - will eventually calculate a confidence interval
-Process:
-(1) download dataset - make sure that that works
-(2) fit model to that dataset
-(3) make sure to be able to calculate R^2 (use "broom::glance()")and the specified log computation
+```{r, echo = FALSE}
+#These are my notes from synchronous class for guidance - please ignore, thank you.
 
-fit a linear model of max temp vs min temp -- two things interested in (1) R2 value - the proportion of outcome variation explained by the predictor and (2) log(estimated intercept * estimated slope) - get broom tidy, get your estimated coefficients, get them next to each other, them multiply and do log.  start with one model first to get the process for one, then how do you do it for multiple with bootstrap samples).  Then, once you're done and by the end, you making plots and/or group by, making confidence intervals for R^2 and log computation.
+# Central Park Weather dataset
+# Try to use the bootstrap to obtain distributions for parameters that you are interested in - will eventually calculate a confidence interval
+# Process:
+# (1) download dataset - make sure that that works
+# (2) fit model to that dataset
+# (3) make sure to be able to calculate R^2 (use "broom::glance()")and the specified log computation
+# 
+# fit a linear model of max temp vs min temp -- two things interested in (1) R2 value - the proportion of outcome variation explained by the predictor and (2) log(estimated intercept * estimated slope) - get broom tidy, get your estimated coefficients, get them next to each other, them multiply and do log.  start with one model first to get the process for one, then how do you do it for multiple with bootstrap samples).  Then, once you're done and by the end, you making plots and/or group by, making confidence intervals for R^2 and log computation.
+```
 
+First, I download the data and fit the specified model.
+
+```{r}
+weather_df = 
+  rnoaa::meteo_pull_monitors(
+    c("USW00094728"),
+    var = c("PRCP", "TMIN", "TMAX"), 
+    date_min = "2017-01-01",
+    date_max = "2017-12-31") %>%
+  mutate(
+    name = recode(id, USW00094728 = "CentralPark_NY"),
+    tmin = tmin / 10,
+    tmax = tmax / 10) %>%
+  select(name, id, everything())
+
+lm_weather = lm(tmax ~ tmin, data = weather_df)
+
+lm_weather %>% 
+  ggplot(aes(x = tmin, y = tmax)) +
+  geom_point() +
+  geom_smooth(method = "lm")
+#appears pretty linear
+```
+
+Next, bootstrapping.  I will write the bootstrap function first.
+
+```{r}
+boot_sample = function(df) {
+  
+  sample_frac(df, replace = TRUE) %>% 
+
+    arrange(tmin)
+
+}
+```
+
+Now I check that this works
+
+```{r}
+boot_sample(weather_df) %>% 
+  ggplot(aes(x = tmin, y = tmax)) +
+  geom_point(alpha = .3) +
+  geom_smooth(method = "lm")
+
+boot_sample(weather_df) %>% 
+  lm(tmax ~ tmin, data = .) %>% 
+  broom::tidy()
+```
+
+Draw many bootstrap samples, first setting 100 samples to save time and see if my code works.  In my final code, I will increase to 5000 samples.
+
+```{r}
+boot_straps =
+  tibble(
+    strap_number = 1:100,
+    strap_sample = rerun(100, boot_sample(weather_df))
+  )
+
+boot_straps %>% pull(strap_sample)
+boot_straps %>% pull(strap_sample) %>% .[[1]]
+boot_straps %>% pull(strap_sample) %>% .[[21]]
+boot_straps %>% pull(strap_sample) %>% .[[97]]
+
+
+```
+
+Generate models for strap_sample tibbles
+
+```{r}
+boot_results =
+  boot_straps %>% 
+  mutate(
+    models = map(.x = strap_sample, ~lm(tmax ~ tmin, data = .x)),
+    r_squared = map(models, broom::glance),
+    results = map(models, broom::tidy)
+  ) %>% 
+  unnest(r_squared) %>%
+  select(strap_number, models, r.squared, results) %>% 
+  mutate(
+    r_squared = r.squared,
+    r_sq_ci_lower = quantile(r.squared, 0.025),
+    r_sq_ci_upper = quantile(r.squared, 0.975)
+  ) %>% 
+  unnest(results) %>% 
+  select(strap_number, r_squared, r_sq_ci_lower, r_sq_ci_upper, term, estimate) %>% 
+  pivot_wider(
+    names_from = term,
+    values_from = estimate
+  ) %>% 
+  mutate(
+    log_computation = log(`(Intercept)` * tmin),
+    log_comp_ci_lower = quantile(log_computation, 0.025),
+    log_comp_ci_upper = quantile(log_computation, 0.975)
+  ) %>% 
+  select(-`(Intercept)`, -tmin)
+
+boot_results %>% 
+  ggplot(aes(x = r_squared)) +
+  geom_histogram()
+
+boot_results %>% 
+  ggplot(aes(x = r_squared)) +
+  geom_density()
+
+boot_results %>% 
+  ggplot(aes(x = log_computation)) +
+  geom_histogram()
+
+boot_results %>% 
+  ggplot(aes(x = log_computation)) +
+  geom_density()
+
+```
+
+The distribution of r_squared and log(Bo * B1) appears normally distributed for 100 bootstrap samples.  I will now repeat the code for 5000 bootstrap samples.
+
+```{r}
+boot_straps =
+  tibble(
+    strap_number = 1:5000,
+    strap_sample = rerun(5000, boot_sample(weather_df))
+  )
+
+boot_results =
+  boot_straps %>% 
+  mutate(
+    models = map(.x = strap_sample, ~lm(tmax ~ tmin, data = .x)),
+    r_squared = map(models, broom::glance),
+    results = map(models, broom::tidy)
+  ) %>% 
+  unnest(r_squared) %>%
+  select(strap_number, models, r.squared, results) %>% 
+  mutate(
+    r_squared = r.squared,
+    r_sq_ci_lower = quantile(r.squared, 0.025),
+    r_sq_ci_upper = quantile(r.squared, 0.975)
+  ) %>% 
+  unnest(results) %>% 
+  select(strap_number, r_squared, r_sq_ci_lower, r_sq_ci_upper, term, estimate) %>% 
+  pivot_wider(
+    names_from = term,
+    values_from = estimate
+  ) %>% 
+  mutate(
+    log_computation = log(`(Intercept)` * tmin),
+    log_comp_ci_lower = quantile(log_computation, 0.025),
+    log_comp_ci_upper = quantile(log_computation, 0.975)
+  ) %>% 
+  select(-`(Intercept)`, -tmin)
+
+boot_results %>% 
+  ggplot(aes(x = r_squared)) +
+  geom_histogram()
+
+boot_results %>% 
+  ggplot(aes(x = r_squared)) +
+  geom_density()
+
+boot_results %>% 
+  ggplot(aes(x = log_computation)) +
+  geom_histogram()
+
+boot_results %>% 
+  ggplot(aes(x = log_computation)) +
+  geom_density()
+
+```
+
+The distribution of r_squared appears normally distributed, but with a leftward skew.
+The distribution of log(B0 * B1) also appears to be normally distributed with a slight leftward skew.
