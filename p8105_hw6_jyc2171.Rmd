@@ -213,15 +213,18 @@ baby_df %>%
 
 baby_df %>% 
   ggplot(aes(x = momwt, y = bwt)) +
-  geom_point()
+  geom_point() +
+  geom_smooth()
 
 baby_df %>% 
   ggplot(aes(x = ppwt, y = bwt)) +
-  geom_point()
+  geom_point() +
+  geom_smooth()
 
 baby_df %>% 
   ggplot(aes(x = bhead, y = bwt)) +
-  geom_point()
+  geom_point() +
+  geom_smooth()
   
 baby_df %>% 
   mutate(
@@ -234,7 +237,8 @@ baby_df %>%
 
 baby_df %>% 
   ggplot(aes(x = blength, y = bwt)) +
-  geom_point()
+  geom_point() +
+  geom_smooth()
 
 baby_df %>% 
   mutate(
@@ -247,7 +251,8 @@ baby_df %>%
 
 baby_df %>% 
   ggplot(aes(x = gaweeks, y = bwt)) +
-  geom_point()
+  geom_point() +
+  geom_smooth()
 
 baby_df %>% 
   mutate(
@@ -257,10 +262,12 @@ baby_df %>%
   ggplot(aes(x = gaweeks, y = bwt)) +
   geom_boxplot() +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
+#gaweeks seem associated
 
 baby_df %>% 
   ggplot(aes(x = fincome, y = bwt)) +
-  geom_point()
+  geom_point() +
+  geom_smooth()
 
 baby_df %>% 
   mutate(
@@ -276,7 +283,8 @@ baby_df %>%
 
 baby_df %>% 
   ggplot(aes(x = menarche, y = bwt)) +
-  geom_point()
+  geom_point() +
+  geom_smooth()
 
 baby_df %>% 
   mutate(
@@ -296,11 +304,13 @@ baby_df %>%
 
 baby_df %>% 
   ggplot(aes(x = ppbmi, y = bwt)) +
-  geom_point()
+  geom_point() +
+  geom_smooth()
 
 baby_df %>% 
   ggplot(aes(x = smoken, y = bwt)) +
-  geom_point()
+  geom_point() +
+  geom_smooth()
 
 baby_df %>% 
   mutate(
@@ -313,7 +323,8 @@ baby_df %>%
 
 baby_df %>% 
   ggplot(aes(x = wtgain, y = bwt)) +
-  geom_point()  
+  geom_point() +
+  geom_smooth()
 ```
 
 Next, I will fit univariate linear models to assess the p values of variables for consideration for inclusion into my model, at a level of statistical significance of p < 0.05.  A priori based on my exploratory ggplots and biological theory, I will definitely select babysex, mrace, momwt, bhead, blength, gaweeks.
@@ -353,15 +364,16 @@ lm(bwt ~ wtgain, data = baby_df) %>% broom::tidy()
 #p = 1.73e-61
 ```
 
-Based on a univariate analyses, the following predictors are statistically significant at the p < 0.05 level: babysex, mrace, momwt, gaweeks, fincome, frace, ppbmi, ppwt, smoken, and wtgain.  Bhead and blength have p values equal to zero - I wonder if these are collinear variables (since they all kind of measure the same thing).  I will include these anyway because, why not?
+Based on univariate analyses, the following predictors are statistically significant at the p < 0.05 level: babysex, mrace, momwt, gaweeks, fincome, frace, ppbmi, ppwt, smoken, and wtgain.  Bhead and blength have p values equal to zero - I wonder if these are collinear variables (since they all kind of measure the same thing).  I will include these anyway because, why not?
 
-So my final model will consist of the following variables: babysex, mrace, momwt, gaweeks, fincome, frace, ppbmi, ppwt, smoken, wtgain, bhead and blength.  I will not assess for confounding or interaction at this time, and if I have time, I will come back and assess for these.  In particular, babysex and mrace may show important interactions for further exploration.  For now, this seems to be "reasonable" model for me to move forward in the homework problem to perform cross-validation.
+So my final model will consist of the following variables: babysex, mrace, momwt, gaweeks, fincome, frace, ppbmi, ppwt, smoken, wtgain, bhead and blength.  I will not assess for confounding or interaction at this time, and if I have time, I will come back and assess for these.  In particular, babysex and mrace may show important interactions for further exploration.  For now, this seems to be a "reasonable" model for me to move forward in the homework problem to perform cross-validation.
 
 ```{r}
-lm_3 = lm(bwt ~ gaweeks + bhead + blength + momwt + babysex + mrace + frace + fincome + ppbmi + ppwt + smoken + wtgain, data = baby_df) 
+lm_3 = lm(bwt ~ gaweeks + bhead + blength + momwt + babysex + mrace + frace + fincome + ppbmi + ppwt + smoken + wtgain, data = baby_df)
 
-lm_3 %>%
-  broom::tidy()
+lm_3 %>% 
+  broom::tidy() %>% 
+  knitr::kable()
 ```
 
 Diagnostics on my model...
@@ -487,7 +499,7 @@ baby_df %>%
 
 #in general, some skewness in positive direction, less so in puerto rican race
 ```
-In general, the distribution of residuals shows some skewness towards higher values, likely reflecting outliers in the data.  The pattern and trend of the residuals seem to be clustered around a central blok and seems overall linear.  There does not appear to be a non-linear or parabolic pattern.
+In general, the distribution of residuals shows some skewness towards higher values, likely reflecting outliers in the data.  The pattern and trend of the residuals seem to be clustered around a central blob and seems overall linear.  There does not appear to be a non-linear or parabolic pattern.
 
 
 Next, I will first fit the two specified models in the homework and perform cross-validation just for these two models, to make sure I can do it correctly.
@@ -552,7 +564,7 @@ cv_df =
   mutate(
     lm_1 = map(.x = train, ~lm(bwt ~ blength + gaweeks, data = .x)),
     lm_2 = map(.x = train, ~lm(bwt ~ bhead * blength * babysex, data = .x)),
-    lm_3 = map(.x = train, ~lm(bwt ~ gaweeks + bhead + blength + momwt + babysex + mrace + frace + fincome + ppbmi + ppwt +                smoken + wtgain, data = .x))
+    lm_3 = map(.x = train, ~lm(bwt ~ gaweeks + bhead + blength + momwt + babysex + mrace + frace + fincome + ppbmi + ppwt + smoken + wtgain, data = .x))
   ) %>% 
   mutate(
     rmse_lm_1 = map2_dbl(.x = lm_1, .y = test, ~rmse(model = .x, data = .y)),
@@ -585,7 +597,7 @@ cv_df %>%
   knitr::kable()
 ```
 
-Overall, the average RMSE is lowest for model #3 compared to the other models, suggesting it provides the best prediction.  However, the model contains a lot of predictors and is less parsimonious than the other models.  Some of the predictors could confound each other.  There may be interactions that I have not explored, particularly by gender and race.  If I were to spend more time on model-building, I could explore interactions and confounders of the association between bwt and gaweeks, because gaweeks is biologically, the length of pregnancy is one of the most important predictors of birth weight.  In addition, statistically, gaweeks seemed to return the smallest p value on univariate regression.
+Overall, the average RMSE is lowest for model #3 compared to the other models, suggesting it provides the best prediction.  However, the model contains a lot of predictors and is less parsimonious than the other models.  Some of the predictors could confound each other.  There may be interactions that I have not explored, particularly by gender and race.  If I were to spend more time on model-building, I could explore interactions and confounders of the association between bwt and gaweeks, because gaweeks (the length of pregnancy) is biologically one of the most important predictors of birth weight.  In addition, statistically, gaweeks seemed to return the smallest p value on univariate regression.
 
 ```{r, include = FALSE}
 # #try the "by hand" method first - could not get this to work, will ask TAs
@@ -634,6 +646,7 @@ weather_df =
 
 lm_weather = lm(tmax ~ tmin, data = weather_df)
 
+
 lm_weather %>% 
   ggplot(aes(x = tmin, y = tmax)) +
   geom_point() +
@@ -675,7 +688,7 @@ boot_straps =
     strap_sample = rerun(100, boot_sample(weather_df))
   )
 
-boot_straps %>% pull(strap_sample)
+#boot_straps %>% pull(strap_sample)
 boot_straps %>% pull(strap_sample) %>% .[[1]]
 boot_straps %>% pull(strap_sample) %>% .[[21]]
 boot_straps %>% pull(strap_sample) %>% .[[97]]
